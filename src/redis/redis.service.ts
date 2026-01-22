@@ -133,6 +133,52 @@ export class RedisService implements OnModuleDestroy {
     return this.client.del(`auth:session:${sessionId}`);
   }
 
+  // OTP Management
+  async setOTP(email: string, otp: string, ttlSeconds: number = 600): Promise<void> {
+    await this.client.set(`auth:otp:${email}`, otp, 'EX', ttlSeconds);
+  }
+
+  async getOTP(email: string): Promise<string | null> {
+    return this.client.get(`auth:otp:${email}`);
+  }
+
+  async deleteOTP(email: string): Promise<void> {
+    await this.client.del(`auth:otp:${email}`);
+  }
+
+  // Store pending signup data temporarily
+  async setPendingSignup(email: string, data: any, ttlSeconds: number = 900): Promise<void> {
+    await this.client.set(`auth:pending:${email}`, JSON.stringify(data), 'EX', ttlSeconds);
+  }
+
+  async getPendingSignup(email: string): Promise<any | null> {
+    const data = await this.client.get(`auth:pending:${email}`);
+    return data ? JSON.parse(data) : null;
+  }
+
+  async deletePendingSignup(email: string): Promise<void> {
+    await this.client.del(`auth:pending:${email}`);
+  }
+
+  // Rate limiting for OTP requests
+  async incrementOTPRequests(email: string, ttlSeconds: number = 3600): Promise<number> {
+    const key = `auth:otp:rate:${email}`;
+    const count = await this.client.incr(key);
+    if (count === 1) {
+      await this.client.expire(key, ttlSeconds);
+    }
+    return count;
+  }
+
+  async getOTPRequestCount(email: string): Promise<number> {
+    const count = await this.client.get(`auth:otp:rate:${email}`);
+    return count ? parseInt(count, 10) : 0;
+  }
+
+  async resetOTPRequests(email: string): Promise<void> {
+    await this.client.del(`auth:otp:rate:${email}`);
+  }
+
   async onModuleDestroy() {
     await this.client.quit();
   }

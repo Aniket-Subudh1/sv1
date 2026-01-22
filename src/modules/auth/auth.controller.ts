@@ -1,4 +1,4 @@
-import { Controller, Post, Get, Put, Body, UseGuards } from '@nestjs/common';
+import { Controller, Post, Get, Put, Body, UseGuards, Logger } from '@nestjs/common';
 import { AuthService } from './auth.service';
 import { RegisterUserDto } from './dto/user.register.dto';
 import { UserLoginDto } from './dto/user.login.dto';
@@ -11,14 +11,41 @@ import { CreateChefDto } from '../admin/dto/create-chef.dto';
 import { AdminService } from '../admin/admin.service';
 import { UserService } from '../user/user.service';
 import { UserProfileDto } from '../user/dto/user.profile.dto';
+import { RequestOtpDto } from './dto/request-otp.dto';
+import { VerifyOtpDto } from './dto/verify-otp.dto';
+import { Throttle, ThrottlerGuard } from '@nestjs/throttler';
 
 @Controller('auth')
 export class AuthController {
+  private readonly logger = new Logger(AuthController.name);
+  
   constructor(
     private readonly authservice: AuthService,
     private readonly adminService: AdminService,
     private readonly userService: UserService,
   ) {}
+
+  @Post('request-otp')
+  @UseGuards(ThrottlerGuard)
+  @Throttle({ default: { limit: 10, ttl: 3600 } }) // 10 requests per hour per IP
+  async requestOTP(@Body() dto: RequestOtpDto) {
+    this.logger.log(`🔷 POST /auth/request-otp - Email: ${dto.email}`);
+    try {
+      const result = await this.authservice.requestOTP(dto);
+      this.logger.log(`✅ OTP request successful for ${dto.email}`);
+      return result;
+    } catch (error) {
+      this.logger.error(`❌ OTP request failed for ${dto.email}: ${error.message}`);
+      throw error;
+    }
+  }
+
+  @Post('verify-otp')
+  @UseGuards(ThrottlerGuard)
+  @Throttle({ default: { limit: 20, ttl: 3600 } }) // 20 attempts per hour per IP
+  async verifyOTP(@Body() dto: VerifyOtpDto) {
+    return this.authservice.verifyOTP(dto);
+  }
 
   @Post('')
   async register(@Body('') dto: RegisterUserDto) {

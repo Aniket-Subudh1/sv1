@@ -8,11 +8,19 @@ import { JwtStrategy } from './strategy/jwt.strategy';
 import { RedisModule } from 'src/redis/redis.module';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { AdminModule } from '../admin/admin.module';
+import { EmailService } from 'src/common/services/email.service';
+import { ThrottlerModule } from '@nestjs/throttler';
 
 @Module({
   imports: [
     PassportModule,
     ConfigModule,
+    ThrottlerModule.forRoot([
+      {
+        ttl: 60, 
+        limit: 1000, 
+      },
+    ]),
     JwtModule.registerAsync({
       inject: [ConfigService],
       useFactory: (config: ConfigService) => {
@@ -31,7 +39,7 @@ import { AdminModule } from '../admin/admin.module';
     RedisModule,
     AdminModule,
   ],
-  providers: [AuthService, JwtStrategy],
+  providers: [AuthService, JwtStrategy, EmailService],
   controllers: [AuthController],
 })
 export class AuthModule {}
