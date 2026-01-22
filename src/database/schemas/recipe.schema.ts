@@ -139,7 +139,7 @@ export class Recipe {
   stickerId?: Types.ObjectId;
 
   @Prop({
-    type: [{ type: Types.ObjectId, ref: 'Hackscategory' }],
+    type: [{ type: Types.ObjectId, ref: 'FrameworkCategory' }],
     required: true,
   })
   frameworkCategories: Types.ObjectId[]; 
