@@ -20,7 +20,8 @@ app.enableCors({
     const allowedOrigins = [
       'http://localhost:3000',
       'http://localhost:3001',
-      'https://crm.saveful.devsomeware.com',
+      'https://admin.saveful.app',
+      'https://saveful.app',
     ];
 
     // Allow expo dev
