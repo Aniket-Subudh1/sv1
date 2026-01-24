@@ -418,7 +418,23 @@ export class IngredientsService {
       throw new NotFoundException('Invalid ingredient ID');
     }
 
-    // Invalidate cache with versioned strategy
+    // First, delete the ingredient from the database
+    const deletedIngredient = await this.ingredientModel.findByIdAndDelete(id);
+    
+    if (!deletedIngredient) {
+      throw new NotFoundException('Ingredient not found');
+    }
+
+    // Delete associated image if exists
+    if (deletedIngredient.heroImageUrl) {
+      try {
+        await this.imageuploadService.deleteFile(deletedIngredient.heroImageUrl);
+      } catch (error) {
+        this.logger.warn(`Failed to delete image for ingredient ${id}: ${error.message}`);
+      }
+    }
+
+    // Invalidate cache with versioned strategy - fetch remaining ingredients
     const ingredients = await this.ingredientModel
       .find()
       .populate('categoryId', 'name imageUrl')
@@ -444,7 +460,7 @@ export class IngredientsService {
         timestamp: Date.now(),
       });
       this.logger.log(
-        `Cache invalidation pushed with version ${newVersion} for key Ingredients:all`,
+        `Cache invalidation pushed with version ${newVersion} for key Ingredients:all after deleting ingredient ${id}`,
       );
     }
 

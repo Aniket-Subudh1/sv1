@@ -26,7 +26,24 @@ export class RecipeService {
 
 
   private processComponents(components: any[]): any[] {
-    return components.map((wrapper) => {
+    if (!Array.isArray(components) || components.length === 0) {
+      throw new BadRequestException('At least one component wrapper is required');
+    }
+
+    return components.map((wrapper, wrapperIndex) => {
+      // Support both `component` and `components` keys from the client
+      const componentArray = Array.isArray(wrapper.component)
+        ? wrapper.component
+        : Array.isArray((wrapper as any).components)
+        ? (wrapper as any).components
+        : [];
+
+      if (componentArray.length === 0) {
+        throw new BadRequestException(
+          `Component wrapper ${wrapperIndex} must have at least one component`
+        );
+      }
+
       return {
         prepShortDescription: wrapper.prepShortDescription,
         prepLongDescription: wrapper.prepLongDescription,
@@ -34,57 +51,79 @@ export class RecipeService {
         stronglyRecommended: wrapper.stronglyRecommended || false,
         choiceInstructions: wrapper.choiceInstructions,
         buttonText: wrapper.buttonText,
-        // Support both `component` and `components` keys from the client
-        component: (
-          Array.isArray(wrapper.component)
-            ? wrapper.component
-            : Array.isArray((wrapper as any).components)
-            ? (wrapper as any).components
-            : []
-        ).map((comp: any) => ({
-          componentTitle: comp.componentTitle,
-          componentInstructions: comp.componentInstructions,
-          includedInVariants: comp.includedInVariants || [],
+        component: componentArray.map((comp: any, compIndex: number) => {
+          if (!comp.componentTitle || comp.componentTitle.trim() === '') {
+            throw new BadRequestException(
+              `Component title is required for wrapper ${wrapperIndex}, component ${compIndex}`
+            );
+          }
 
-          requiredIngredients: (comp.requiredIngredients || []).map(
-            (reqIng: any) => ({
-              recommendedIngredient: new Types.ObjectId(
-                reqIng.recommendedIngredient,
-              ),
-              quantity: reqIng.quantity,
-              preparation: reqIng.preparation,
+          return {
+            componentTitle: comp.componentTitle,
+            componentInstructions: comp.componentInstructions,
+            includedInVariants: comp.includedInVariants || [],
 
-              alternativeIngredients: (
-                reqIng.alternativeIngredients || []
-              ).map((altIng: any) => ({
-                ingredient: new Types.ObjectId(altIng.ingredient),
-                inheritQuantity: altIng.inheritQuantity || false,
-                inheritPreparation: altIng.inheritPreparation || false,
-                quantity: altIng.quantity,
-                preparation: altIng.preparation,
-              })),
-            }),
-          ),
+            requiredIngredients: (comp.requiredIngredients || []).map(
+              (reqIng: any, reqIndex: number) => {
+                if (!reqIng.recommendedIngredient || !Types.ObjectId.isValid(reqIng.recommendedIngredient)) {
+                  throw new BadRequestException(
+                    `Invalid ingredient ID in wrapper ${wrapperIndex}, component ${compIndex}, required ingredient ${reqIndex}: "${reqIng.recommendedIngredient}"`
+                  );
+                }
+                return {
+                  recommendedIngredient: new Types.ObjectId(
+                    reqIng.recommendedIngredient,
+                  ),
+                  quantity: reqIng.quantity,
+                  preparation: reqIng.preparation,
 
-          optionalIngredients: (comp.optionalIngredients || []).map(
-            (optIng: any) => ({
-              ingredient: new Types.ObjectId(optIng.ingredient),
-              quantity: optIng.quantity,
-              preparation: optIng.preparation,
-            }),
-          ),
-
-          componentSteps: (comp.componentSteps || []).map((step: any) => ({
-            stepInstructions: step.stepInstructions,
-            hackOrTipIds: (step.hackOrTipIds || []).map(
-              (id: string) => new Types.ObjectId(id),
+                  alternativeIngredients: (
+                    reqIng.alternativeIngredients || []
+                  ).map((altIng: any, altIndex: number) => {
+                    if (!altIng.ingredient || !Types.ObjectId.isValid(altIng.ingredient)) {
+                      throw new BadRequestException(
+                        `Invalid alternative ingredient ID in wrapper ${wrapperIndex}, component ${compIndex}, required ingredient ${reqIndex}, alternative ${altIndex}: "${altIng.ingredient}"`
+                      );
+                    }
+                    return {
+                      ingredient: new Types.ObjectId(altIng.ingredient),
+                      inheritQuantity: altIng.inheritQuantity || false,
+                      inheritPreparation: altIng.inheritPreparation || false,
+                      quantity: altIng.quantity,
+                      preparation: altIng.preparation,
+                    };
+                  }),
+                };
+              },
             ),
-            alwaysShow: step.alwaysShow || false,
-            relevantIngredients: (step.relevantIngredients || []).map(
-              (id: string) => new Types.ObjectId(id),
+
+            optionalIngredients: (comp.optionalIngredients || []).map(
+              (optIng: any, optIndex: number) => {
+                if (!optIng.ingredient || !Types.ObjectId.isValid(optIng.ingredient)) {
+                  throw new BadRequestException(
+                    `Invalid optional ingredient ID in wrapper ${wrapperIndex}, component ${compIndex}, optional ingredient ${optIndex}: "${optIng.ingredient}"`
+                  );
+                }
+                return {
+                  ingredient: new Types.ObjectId(optIng.ingredient),
+                  quantity: optIng.quantity,
+                  preparation: optIng.preparation,
+                };
+              },
             ),
-          })),
-        })),
+
+            componentSteps: (comp.componentSteps || []).map((step: any) => ({
+              stepInstructions: step.stepInstructions,
+              hackOrTipIds: (step.hackOrTipIds || [])
+                .filter((id: string) => id && Types.ObjectId.isValid(id))
+                .map((id: string) => new Types.ObjectId(id)),
+              alwaysShow: step.alwaysShow || false,
+              relevantIngredients: (step.relevantIngredients || [])
+                .filter((id: string) => id && Types.ObjectId.isValid(id))
+                .map((id: string) => new Types.ObjectId(id)),
+            })),
+          };
+        }),
       };
     });
   }
@@ -119,22 +158,30 @@ export class RecipeService {
         }
       }
 
+      // Validate and convert framework categories
+      const validFrameworkCategories = createRecipeDto.frameworkCategories
+        .filter(id => id && Types.ObjectId.isValid(id))
+        .map(id => new Types.ObjectId(id));
+      
+      if (validFrameworkCategories.length === 0) {
+        throw new BadRequestException('At least one valid framework category is required');
+      }
+
+      // Validate and convert optional ObjectId fields
       const recipeData: any = {
         ...createRecipeDto,
         heroImageUrl: heroImageUrl || createRecipeDto.heroImageUrl,
-        hackOrTipIds: (createRecipeDto.hackOrTipIds || []).map(
-          (id) => new Types.ObjectId(id),
-        ),
-        frameworkCategories: createRecipeDto.frameworkCategories.map(
-          (id) => new Types.ObjectId(id),
-        ),
-        useLeftoversIn: (createRecipeDto.useLeftoversIn || []).map(
-          (id) => new Types.ObjectId(id),
-        ),
-        stickerId: createRecipeDto.stickerId
+        hackOrTipIds: (createRecipeDto.hackOrTipIds || [])
+          .filter(id => id && Types.ObjectId.isValid(id))
+          .map(id => new Types.ObjectId(id)),
+        frameworkCategories: validFrameworkCategories,
+        useLeftoversIn: (createRecipeDto.useLeftoversIn || [])
+          .filter(id => id && Types.ObjectId.isValid(id))
+          .map(id => new Types.ObjectId(id)),
+        stickerId: createRecipeDto.stickerId && Types.ObjectId.isValid(createRecipeDto.stickerId)
           ? new Types.ObjectId(createRecipeDto.stickerId)
           : undefined,
-        sponsorId: createRecipeDto.sponsorId
+        sponsorId: createRecipeDto.sponsorId && Types.ObjectId.isValid(createRecipeDto.sponsorId)
           ? new Types.ObjectId(createRecipeDto.sponsorId)
           : undefined,
         components: processedComponents,
@@ -454,29 +501,34 @@ export class RecipeService {
       }
 
       if (updateRecipeDto.hackOrTipIds) {
-        updateData.hackOrTipIds = updateRecipeDto.hackOrTipIds.map(
-          (id) => new Types.ObjectId(id),
-        );
+        updateData.hackOrTipIds = updateRecipeDto.hackOrTipIds
+          .filter(id => id && Types.ObjectId.isValid(id))
+          .map((id) => new Types.ObjectId(id));
       }
 
       if (updateRecipeDto.frameworkCategories) {
-        updateData.frameworkCategories =
-          updateRecipeDto.frameworkCategories.map(
-            (id) => new Types.ObjectId(id),
-          );
+        const validCategories = updateRecipeDto.frameworkCategories
+          .filter(id => id && Types.ObjectId.isValid(id))
+          .map((id) => new Types.ObjectId(id));
+        
+        if (validCategories.length === 0) {
+          throw new BadRequestException('At least one valid framework category is required');
+        }
+        
+        updateData.frameworkCategories = validCategories;
       }
 
       if (updateRecipeDto.useLeftoversIn) {
-        updateData.useLeftoversIn = updateRecipeDto.useLeftoversIn.map(
-          (id) => new Types.ObjectId(id),
-        );
+        updateData.useLeftoversIn = updateRecipeDto.useLeftoversIn
+          .filter(id => id && Types.ObjectId.isValid(id))
+          .map((id) => new Types.ObjectId(id));
       }
 
-      if (updateRecipeDto.stickerId) {
+      if (updateRecipeDto.stickerId && Types.ObjectId.isValid(updateRecipeDto.stickerId)) {
         updateData.stickerId = new Types.ObjectId(updateRecipeDto.stickerId);
       }
 
-      if (updateRecipeDto.sponsorId) {
+      if (updateRecipeDto.sponsorId && Types.ObjectId.isValid(updateRecipeDto.sponsorId)) {
         updateData.sponsorId = new Types.ObjectId(updateRecipeDto.sponsorId);
       }
 
