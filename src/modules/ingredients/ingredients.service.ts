@@ -190,7 +190,36 @@ export class IngredientsService {
     }
 
     const ingredient = await this.ingredientModel.create(ingredientData);
-    await this.clearIngredientCache();
+    
+    // Invalidate cache with versioned strategy
+    const ingredients = await this.ingredientModel
+      .find()
+      .populate('categoryId', 'name imageUrl')
+      .populate('suitableDiets', 'name')
+      .populate('parentIngredients', 'name')
+      .populate('sponsorId', 'title logo')
+      .populate('relatedHacks', 'title type')
+      .populate('stickerId', 'title imageUrl')
+      .sort({ order: 1, name: 1 })
+      .lean();
+
+    const { oldVersion, newVersion } = await this.redisService.setVersioned(
+      'Ingredients:all',
+      ingredients,
+      60 * 20,
+    );
+    
+    if (oldVersion > 0) {
+      await this.sqsService.publishCacheInvalidation({
+        eventType: 'CACHE_INVALIDATION',
+        baseKey: 'Ingredients:all',
+        invalidateVersions: [oldVersion],
+        timestamp: Date.now(),
+      });
+      this.logger.log(
+        `Cache invalidation pushed with version ${newVersion} for key Ingredients:all`,
+      );
+    }
 
     return ingredient;
   }
@@ -350,8 +379,8 @@ export class IngredientsService {
       .populate('relatedHacks', 'title type')
       .populate('stickerId', 'title imageUrl');
 
-    // await this.clearIngredientCache();
-     const ingredients = await this.ingredientModel
+    // Invalidate cache with versioned strategy
+    const ingredients = await this.ingredientModel
       .find()
       .populate('categoryId', 'name imageUrl')
       .populate('suitableDiets', 'name')
@@ -361,20 +390,25 @@ export class IngredientsService {
       .populate('stickerId', 'title imageUrl')
       .sort({ order: 1, name: 1 })
       .lean();
-      
 
-      // ** new caching startegy 
-      const{oldVersion,newVersion} = await this.redisService.setVersioned("Ingredients:all",JSON.stringify(ingredients),3600)
-      if(oldVersion > 0){
-        await this.sqsService.publishCacheInvalidation({
-          eventType:'CACHE_INVALIDATION',
-          baseKey:'Ingredients:all',
-          invalidateVersions:[oldVersion],
-          timestamp:Date.now()
-        })
-        this.logger.log(`cache invalidation pushed with version ${newVersion} for key Ingredinats:all`)
-      }
-      
+    // New caching strategy
+    const { oldVersion, newVersion } = await this.redisService.setVersioned(
+      'Ingredients:all',
+      ingredients,
+      60 * 20,
+    );
+    
+    if (oldVersion > 0) {
+      await this.sqsService.publishCacheInvalidation({
+        eventType: 'CACHE_INVALIDATION',
+        baseKey: 'Ingredients:all',
+        invalidateVersions: [oldVersion],
+        timestamp: Date.now(),
+      });
+      this.logger.log(
+        `Cache invalidation pushed with version ${newVersion} for key Ingredients:all`,
+      );
+    }
 
     return updatedIngredient;
   }
@@ -384,12 +418,35 @@ export class IngredientsService {
       throw new NotFoundException('Invalid ingredient ID');
     }
 
-    const ingredient = await this.ingredientModel.findByIdAndDelete(id);
-    if (!ingredient) {
-      throw new NotFoundException('Ingredient not found');
-    }
+    // Invalidate cache with versioned strategy
+    const ingredients = await this.ingredientModel
+      .find()
+      .populate('categoryId', 'name imageUrl')
+      .populate('suitableDiets', 'name')
+      .populate('parentIngredients', 'name')
+      .populate('sponsorId', 'title logo')
+      .populate('relatedHacks', 'title type')
+      .populate('stickerId', 'title imageUrl')
+      .sort({ order: 1, name: 1 })
+      .lean();
 
-    await this.clearIngredientCache();
+    const { oldVersion, newVersion } = await this.redisService.setVersioned(
+      'Ingredients:all',
+      ingredients,
+      60 * 20,
+    );
+    
+    if (oldVersion > 0) {
+      await this.sqsService.publishCacheInvalidation({
+        eventType: 'CACHE_INVALIDATION',
+        baseKey: 'Ingredients:all',
+        invalidateVersions: [oldVersion],
+        timestamp: Date.now(),
+      });
+      this.logger.log(
+        `Cache invalidation pushed with version ${newVersion} for key Ingredients:all`,
+      );
+    }
 
     return { message: 'Ingredient deleted successfully' };
   }

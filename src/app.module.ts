@@ -24,6 +24,7 @@ import { FeedbackModule } from './modules/feedback/feedback.module';
 import { FavouriteModule } from './modules/favourite/favourite.module';
 import { BadgesModule } from './modules/badges/badges.module';
 import { ShoppingListModule } from './modules/shopping-list/shopping-list.module';
+import { TrackSurveyModule } from './modules/track-survey/track-survey.module';
 import {EventEmitterModule} from "@nestjs/event-emitter"
 import { WinstonModule, WINSTON_MODULE_PROVIDER } from 'nest-winston';
 import createWinstonLogger from './logger';
@@ -56,6 +57,7 @@ import { SqsModule } from './sqs/sqs.module';
     FavouriteModule,
     BadgesModule,
     ShoppingListModule,
+    TrackSurveyModule,
     SqsModule,
   ],
   controllers: [AppController],
