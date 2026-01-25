@@ -415,6 +415,10 @@ export class AuthService {
       country: user.country,
       stateCode: user.stateCode,
       
+      // Add timestamp fields for account creation tracking
+      inserted_at: (user as any).createdAt, // MongoDB timestamps field
+      app_joined_at: (user as any).createdAt, // Alternative field name
+      
       // Flatten dietary profile for easier access
       vegType: user.dietaryProfile?.vegType || 'OMNI',
       dairyFree: user.dietaryProfile?.dairyFree || false,
