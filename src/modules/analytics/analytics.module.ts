@@ -2,6 +2,7 @@ import { Global, Module, forwardRef } from '@nestjs/common';
 import { AnalyticsController } from './analytics.controller';
 import { AnalyticsService } from './analytics.service';
 import { AnalyticsListner } from './analytics.listener';
+import { AppSessionListener } from './app-session.listener';
 import { MongooseModule } from '@nestjs/mongoose';
 import { UserFoodAnalyticalProfileSchema, UserFoodAnalyticsProfile } from 'src/database/schemas/user.food.analyticsProfile.schema';
 import { Ingredient, IngredientSchema } from 'src/database/schemas/ingredient.schema';
@@ -29,7 +30,7 @@ import { User,UserSchema } from 'src/database/schemas/user.auth.schema';
     ]),
     forwardRef(() => BadgesModule),
   ],
-  providers: [AnalyticsService,AnalyticsListner],
+  providers: [AnalyticsService,AnalyticsListner, AppSessionListener],
   controllers: [AnalyticsController],
   exports:[]
 })

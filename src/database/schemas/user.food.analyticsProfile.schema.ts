@@ -12,6 +12,9 @@ export class UserFoodAnalyticsProfile{
     @Prop({default:0, index:true}) 
     foodSavedInGrams:number;
 
+    @Prop({default:0, index:true})
+    totalAppSessions:number;
+
     @Prop({default:[]})
     savedRecipes:Types.ObjectId[]
 

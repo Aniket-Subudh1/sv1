@@ -673,12 +673,12 @@ export class BadgesService {
     }
   }
 
-  @OnEvent('app.session')
-  async handleAppSession(payload: { userId: string; country?: string }) {
+  @OnEvent('app.session.incremented')
+  async handleAppSessionIncremented(payload: { userId: string; country?: string }) {
     try {
       await this.checkAndAwardBadges(payload.userId, payload.country);
     } catch (error) {
-      this.logger.error(`Error checking badges after app session:`, error);
+      this.logger.error(`Error checking badges after session increment:`, error);
     }
   }
 }
