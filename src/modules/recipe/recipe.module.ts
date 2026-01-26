@@ -13,7 +13,8 @@ import { ImageUploadModule } from '../image-upload/image-upload.module';
     MulterModule.register({
       limits: {
         fileSize: 10 * 1024 * 1024,
-        fieldSize: 50 * 1024 * 1024, 
+        files: 10, 
+        fields: 100,
       },
     }),
     RedisModule,
