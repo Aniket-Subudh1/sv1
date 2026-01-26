@@ -231,6 +231,7 @@ export class RecipeService {
   }
 
  
+ 
   async findAll(): Promise<Recipe[]> {
     try {
       const cached = await this.redisService.get(this.CACHE_KEY_ALL);
@@ -242,44 +243,67 @@ export class RecipeService {
       await this.redisService.del(this.CACHE_KEY_ALL);
     }
 
-    const recipes = await this.recipeModel
-      .find({ isActive: true })
-      .populate('hackOrTipIds')
-      .populate('stickerId')
-      .populate('frameworkCategories')
-      .populate('sponsorId')
-      .populate('useLeftoversIn')
-      .populate({
-        path: 'components.component.requiredIngredients.recommendedIngredient',
-        model: 'Ingredient',
-      })
-      .populate({
-        path: 'components.component.requiredIngredients.alternativeIngredients.ingredient',
-        model: 'Ingredient',
-      })
-      .populate({
-        path: 'components.component.optionalIngredients.ingredient',
-        model: 'Ingredient',
-      })
-      .populate({
-        path: 'components.component.componentSteps.hackOrTipIds',
-        model: 'HackOrTip',
-      })
-      .populate({
-        path: 'components.component.componentSteps.relevantIngredients',
-        model: 'Ingredient',
-      })
-      .sort({ order: 1 })
-      .lean()
-      .exec();
+    try {
+      // Clean up any recipes with empty string ObjectId fields before querying
+      await this.recipeModel.updateMany(
+        { 
+          $or: [
+            { stickerId: '' },
+            { sponsorId: '' },
+          ]
+        },
+        { 
+          $unset: { 
+            stickerId: 1,
+            sponsorId: 1,
+          } 
+        }
+      );
 
-    await this.redisService.set(
-      this.CACHE_KEY_ALL,
-      JSON.stringify(recipes),
-      this.CACHE_TTL,
-    );
+      const recipes = await this.recipeModel
+        .find({ isActive: true })
+        .populate('hackOrTipIds')
+        .populate('stickerId')
+        .populate('frameworkCategories')
+        .populate('sponsorId')
+        .populate('useLeftoversIn')
+        .populate({
+          path: 'components.component.requiredIngredients.recommendedIngredient',
+          model: 'Ingredient',
+        })
+        .populate({
+          path: 'components.component.requiredIngredients.alternativeIngredients.ingredient',
+          model: 'Ingredient',
+        })
+        .populate({
+          path: 'components.component.optionalIngredients.ingredient',
+          model: 'Ingredient',
+        })
+        .populate({
+          path: 'components.component.componentSteps.hackOrTipIds',
+          model: 'HackOrTip',
+        })
+        .populate({
+          path: 'components.component.componentSteps.relevantIngredients',
+          model: 'Ingredient',
+        })
+        .sort({ order: 1 })
+        .lean()
+        .exec();
 
-    return recipes;
+      await this.redisService.set(
+        this.CACHE_KEY_ALL,
+        JSON.stringify(recipes),
+        this.CACHE_TTL,
+      );
+
+      return recipes;
+    } catch (error) {
+      console.error('Error fetching recipes from database:', error);
+      throw new BadRequestException(
+        `Failed to fetch recipes: ${error.message}`,
+      );
+    }
   }
 
   
