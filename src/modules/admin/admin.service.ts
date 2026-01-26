@@ -27,6 +27,7 @@ export class AdminService {
       throw new BadRequestException('Chef with this email already exists');
     }
 
+    
     const passwordHash = await bcrypt.hash(dto.password, 10);
 
     const chef = await this.userModel.create({
