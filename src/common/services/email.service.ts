@@ -29,7 +29,7 @@ export class EmailService {
     });
 
     this.fromEmail =
-      this.configService.get<string>('FROM_EMAIL') || 'info@saveful.app';
+      this.configService.get<string>('FROM_EMAIL') || '"Saveful" <info@saveful.app>';
     this.smtpUser = this.configService.get<string>('SMTP_USER');
   }
 
@@ -245,14 +245,10 @@ If you didn’t request this, you can safely ignore this email.
 
     await this.transporter.sendMail({
       from: this.fromEmail,
-      replyTo: this.fromEmail,
+      replyTo: 'info@saveful.app',
       to: email,
       subject: 'Your Saveful Verification Code',
       html: htmlTemplate,
-      envelope: {
-        from: this.smtpUser || this.fromEmail,
-        to: email,
-      },
     });
   }
 
@@ -503,14 +499,10 @@ If you didn’t request this, you can safely ignore this email.
 
     const mailOptions = {
       from: this.fromEmail,
-      replyTo: this.fromEmail,
+      replyTo: 'info@saveful.app',
       to: email,
       subject: 'Welcome to Saveful',
       html: htmlTemplate,
-      envelope: {
-        from: this.smtpUser || this.fromEmail,
-        to: email,
-      },
     };
 
     console.log('📧 [EmailService] Welcome email prepared, sending...');
