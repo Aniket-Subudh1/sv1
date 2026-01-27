@@ -244,7 +244,7 @@ If you didn’t request this, you can safely ignore this email.
 </html>`;
 
     await this.transporter.sendMail({
-      from: this.fromEmail,
+      from: '"Saveful" <info@saveful.app>',
       replyTo: 'info@saveful.app',
       to: email,
       subject: 'Your Saveful Verification Code',
@@ -498,7 +498,7 @@ If you didn’t request this, you can safely ignore this email.
 </html>`;
 
     const mailOptions = {
-      from: this.fromEmail,
+      from: '"Saveful" <info@saveful.app>',
       replyTo: 'info@saveful.app',
       to: email,
       subject: 'Welcome to Saveful',
