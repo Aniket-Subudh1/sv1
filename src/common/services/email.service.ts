@@ -1,36 +1,41 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import * as nodemailer from 'nodemailer';
 
 @Injectable()
 export class EmailService {
+  private readonly logger = new Logger(EmailService.name);
   private readonly transporter: nodemailer.Transporter;
   private readonly fromEmail: string;
-  private readonly smtpUser: string | undefined;
+  private readonly replyTo: string;
 
   constructor(private readonly configService: ConfigService) {
+    this.fromEmail =
+      this.configService.get<string>('FROM_EMAIL') ??
+      '"Saveful" <saveful@jogaadindia.com>';
+
+    this.replyTo =
+      this.configService.get<string>('REPLY_TO') ??
+      '"Saveful" <saveful@jogaadindia.com>';
+
     this.transporter = nodemailer.createTransport({
       host: this.configService.get<string>('SMTP_HOST'),
-      port: this.configService.get<number>('SMTP_PORT') || 587,
-      secure: false,
+      port: this.configService.get<number>('SMTP_PORT') ?? 587,
+      secure: false, // STARTTLS
       requireTLS: true,
       auth: {
         user: this.configService.get<string>('SMTP_USER'),
         pass: this.configService.get<string>('SMTP_PASS'),
       },
-      pool: true, 
-      maxConnections: 5, 
-      maxMessages: 100, 
-      rateDelta: 1000, 
-      rateLimit: 5, 
-      tls: {
-        rejectUnauthorized: false,
-      },
     });
 
-    this.fromEmail =
-      this.configService.get<string>('FROM_EMAIL') || '"Saveful" <info@saveful.app>';
-    this.smtpUser = this.configService.get<string>('SMTP_USER');
+    this.transporter.verify((error) => {
+      if (error) {
+        this.logger.error('❌ SMTP verification failed', error);
+      } else {
+        this.logger.log('✅ SMTP server is ready to send emails');
+      }
+    });
   }
 
   async sendOTPEmail(
@@ -244,8 +249,8 @@ If you didn’t request this, you can safely ignore this email.
 </html>`;
 
     await this.transporter.sendMail({
-      from: '"Saveful" <info@saveful.app>',
-      replyTo: 'info@saveful.app',
+      from: this.fromEmail,
+      replyTo: this.replyTo,
       to: email,
       subject: 'Your Saveful Verification Code',
       html: htmlTemplate,
@@ -498,8 +503,8 @@ If you didn’t request this, you can safely ignore this email.
 </html>`;
 
     const mailOptions = {
-      from: '"Saveful" <info@saveful.app>',
-      replyTo: 'info@saveful.app',
+      from: this.fromEmail,
+      replyTo: this.replyTo,
       to: email,
       subject: 'Welcome to Saveful',
       html: htmlTemplate,
