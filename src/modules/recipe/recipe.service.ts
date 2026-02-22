@@ -211,6 +211,8 @@ export class RecipeService {
       }
 
       await this.redisService.del(this.CACHE_KEY_ALL);
+      await this.redisService.delByPattern(`${this.CACHE_KEY_ALL}:country:*`);
+      await this.redisService.delByPattern(`${this.CACHE_KEY_CATEGORY}:*:country:*`);
       // Also clear per-category caches for affected framework categories
       try {
         for (const catId of recipeData.frameworkCategories || []) {
@@ -232,15 +234,20 @@ export class RecipeService {
 
  
  
-  async findAll(): Promise<Recipe[]> {
+  async findAll(country?: string): Promise<Recipe[]> {
+    // Country-specific cache key so each country gets its own cached result
+    const cacheKey = country
+      ? `${this.CACHE_KEY_ALL}:country:${country.toLowerCase()}`
+      : this.CACHE_KEY_ALL;
+
     try {
-      const cached = await this.redisService.get(this.CACHE_KEY_ALL);
+      const cached = await this.redisService.get(cacheKey);
       if (cached) {
         return JSON.parse(cached);
       }
     } catch (error) {
       console.error('Error parsing cached recipes, clearing cache:', error.message);
-      await this.redisService.del(this.CACHE_KEY_ALL);
+      await this.redisService.del(cacheKey);
     }
 
     try {
@@ -260,8 +267,20 @@ export class RecipeService {
         }
       );
 
+      // Build the match query with optional country filter.
+      // Recipes with an empty countries array are globally available.
+      // Recipes with a non-empty countries array are only shown to users
+      // whose country is listed.
+      const matchQuery: any = { isActive: true };
+      if (country) {
+        matchQuery.$or = [
+          { countries: { $size: 0 } },
+          { countries: country },
+        ];
+      }
+
       const recipes = await this.recipeModel
-        .find({ isActive: true })
+        .find(matchQuery)
         .populate('hackOrTipIds')
         .populate('stickerId')
         .populate('frameworkCategories')
@@ -292,7 +311,7 @@ export class RecipeService {
         .exec();
 
       await this.redisService.set(
-        this.CACHE_KEY_ALL,
+        cacheKey,
         JSON.stringify(recipes),
         this.CACHE_TTL,
       );
@@ -367,12 +386,14 @@ export class RecipeService {
   }
 
 
-  async findByFrameworkCategory(categoryId: string): Promise<Recipe[]> {
+  async findByFrameworkCategory(categoryId: string, country?: string): Promise<Recipe[]> {
     if (!Types.ObjectId.isValid(categoryId)) {
       throw new BadRequestException('Invalid category ID format');
     }
 
-    const cacheKey = `${this.CACHE_KEY_CATEGORY}:${categoryId}`;
+    const cacheKey = country
+      ? `${this.CACHE_KEY_CATEGORY}:${categoryId}:country:${country.toLowerCase()}`
+      : `${this.CACHE_KEY_CATEGORY}:${categoryId}`;
     try {
       const cached = await this.redisService.get(cacheKey);
       if (cached) {
@@ -383,11 +404,19 @@ export class RecipeService {
       await this.redisService.del(cacheKey);
     }
 
+    const matchQuery: any = {
+      frameworkCategories: new Types.ObjectId(categoryId),
+      isActive: true,
+    };
+    if (country) {
+      matchQuery.$or = [
+        { countries: { $size: 0 } },
+        { countries: country },
+      ];
+    }
+
     const recipes = await this.recipeModel
-      .find({
-        frameworkCategories: new Types.ObjectId(categoryId),
-        isActive: true,
-      })
+      .find(matchQuery)
       .populate('hackOrTipIds')
       .populate('stickerId')
       .populate('frameworkCategories')
@@ -413,12 +442,14 @@ export class RecipeService {
     return recipes;
   }
 
-  async findByIngredient(ingredientId: string): Promise<Recipe[]> {
+  async findByIngredient(ingredientId: string, country?: string): Promise<Recipe[]> {
     if (!Types.ObjectId.isValid(ingredientId)) {
       throw new BadRequestException('Invalid ingredient ID format');
     }
 
-    const cacheKey = `recipes:ingredient:${ingredientId}`;
+    const cacheKey = country
+      ? `recipes:ingredient:${ingredientId}:country:${country.toLowerCase()}`
+      : `recipes:ingredient:${ingredientId}`;
     try {
       const cached = await this.redisService.get(cacheKey);
       if (cached) {
@@ -431,19 +462,33 @@ export class RecipeService {
 
     const ingredientObjectId = new Types.ObjectId(ingredientId);
 
+    // Build the match query: filter by ingredient presence plus optional country.
+    const ingredientConditions = [
+      { 'components.component.requiredIngredients.recommendedIngredient': ingredientObjectId },
+      { 'components.component.requiredIngredients.alternativeIngredients.ingredient': ingredientObjectId },
+      { 'components.component.optionalIngredients.ingredient': ingredientObjectId },
+    ];
+
+    const matchQuery: any = { isActive: true, $or: ingredientConditions };
+    if (country) {
+      matchQuery.$and = [
+        { $or: ingredientConditions },
+        {
+          $or: [
+            { countries: { $size: 0 } },
+            { countries: country },
+          ],
+        },
+      ];
+      delete matchQuery.$or; // move to $and
+    }
+
     // Find recipes where the ingredient appears in:
     // 1. Required ingredients (recommendedIngredient)
     // 2. Alternative ingredients
     // 3. Optional ingredients
     const recipes = await this.recipeModel
-      .find({
-        isActive: true,
-        $or: [
-          { 'components.component.requiredIngredients.recommendedIngredient': ingredientObjectId },
-          { 'components.component.requiredIngredients.alternativeIngredients.ingredient': ingredientObjectId },
-          { 'components.component.optionalIngredients.ingredient': ingredientObjectId },
-        ],
-      })
+      .find(matchQuery)
       .populate('hackOrTipIds')
       .populate('stickerId')
       .populate('frameworkCategories')
@@ -570,6 +615,8 @@ export class RecipeService {
 
       await this.redisService.del(this.CACHE_KEY_ALL);
       await this.redisService.del(`${this.CACHE_KEY_SINGLE}:${id}`);
+      await this.redisService.delByPattern(`${this.CACHE_KEY_ALL}:country:*`);
+      await this.redisService.delByPattern(`${this.CACHE_KEY_CATEGORY}:*:country:*`);
 
       // Clear caches for previous and new category IDs
       try {
@@ -616,6 +663,8 @@ export class RecipeService {
 
     await this.redisService.del(this.CACHE_KEY_ALL);
     await this.redisService.del(`${this.CACHE_KEY_SINGLE}:${id}`);
+    await this.redisService.delByPattern(`${this.CACHE_KEY_ALL}:country:*`);
+    await this.redisService.delByPattern(`${this.CACHE_KEY_CATEGORY}:*:country:*`);
 
     if (recipe.frameworkCategories) {
       for (const catId of recipe.frameworkCategories) {

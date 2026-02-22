@@ -324,7 +324,7 @@ Notes:
     };
   }
 
-  async getTrendingRecipes(limit: number = 5) {
+  async getTrendingRecipes(limit: number = 5, country?: string) {
     // Define current month range
     const now = new Date();
     const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
@@ -372,8 +372,17 @@ Notes:
     const ids = results.map(r => r._id).filter(Boolean);
     if (!ids.length) return { trending: [] };
 
+    // Build recipe filter: match IDs + optional country restriction
+    const recipeFilter: any = { _id: { $in: ids.map(id => new Types.ObjectId(id)) } };
+    if (country) {
+      recipeFilter.$or = [
+        { countries: { $size: 0 } },
+        { countries: country },
+      ];
+    }
+
     const recipes = await this.recipeModel
-      .find({ _id: { $in: ids.map(id => new Types.ObjectId(id)) } })
+      .find(recipeFilter)
       .select('title heroImageUrl shortDescription')
       .lean();
 

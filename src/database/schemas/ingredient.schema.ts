@@ -74,6 +74,9 @@ export class Ingredient {
 
   @Prop({ default: 0 })
   order?: number; 
+
+  @Prop({ type: [String], default: [] })
+  countries: string[];
 }
 
 export type IngredientDocument = Ingredient & Document;

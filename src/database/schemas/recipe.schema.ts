@@ -165,6 +165,9 @@ export class Recipe {
 
   @Prop({ default: true })
   isActive: boolean;
+
+  @Prop({ type: [String], default: [] })
+  countries: string[];
 }
 
 export type RecipeDocument = Recipe & Document;

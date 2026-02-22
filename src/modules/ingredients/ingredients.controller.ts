@@ -5,6 +5,7 @@ import {
   Put,
   Delete,
   Post,
+  Query,
   UseGuards,
   UseInterceptors,
   UploadedFiles,
@@ -75,8 +76,8 @@ export class IngredientsController {
   }
 
   @Get()
-  async getAllIngredients() {
-    return this.ingrediantsService.getAllIngredients();
+  async getAllIngredients(@Query('country') country?: string) {
+    return this.ingrediantsService.getAllIngredients(country);
   }
 
   @Get(':id')

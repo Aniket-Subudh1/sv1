@@ -83,6 +83,17 @@ export class RedisService implements OnModuleDestroy {
     await this.client.del(key);
   }
 
+  async delByPattern(pattern: string): Promise<void> {
+    let cursor = '0';
+    do {
+      const [nextCursor, keys] = await this.client.scan(cursor, 'MATCH', pattern, 'COUNT', 100);
+      cursor = nextCursor;
+      if (keys.length > 0) {
+        await this.client.del(...keys);
+      }
+    } while (cursor !== '0');
+  }
+
   async setSession(sessionId: string, userId: string, ttlSeconds: number) {
     await this.client.set(
       `auth:session:${sessionId}`,

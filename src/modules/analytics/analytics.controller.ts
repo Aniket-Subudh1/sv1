@@ -48,9 +48,8 @@ export class AnalyticsController {
 
   @Get('trending')
   @UseGuards(JwtAuthGuard, RolesGuard)
-  async getTrending(@GetUser() user: any) {
-    // Trending is global; user context used to auth only
-    return this.analyticsService.getTrendingRecipes(5);
+  async getTrending(@GetUser() user: any, @Query('country') country?: string) {
+    return this.analyticsService.getTrendingRecipes(5, country);
   }
 
   @Get('leaderboard')

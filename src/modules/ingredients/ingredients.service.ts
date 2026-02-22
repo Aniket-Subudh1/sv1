@@ -123,7 +123,6 @@ export class IngredientsService {
     return { message: 'Category deleted successfully' };
   }
 
-  // Ingredient Management
   async createIngredient(
     dto: CreateIngredientDto,
     files?: { heroImage?: Express.Multer.File[] },
@@ -135,14 +134,12 @@ export class IngredientsService {
       hasPage: dto.hasPage || false,
     };
 
-    // Add suitable diets if provided
     if (dto.suitableDiets && dto.suitableDiets.length > 0) {
       ingredientData.suitableDiets = dto.suitableDiets
         .filter((id) => Types.ObjectId.isValid(id))
         .map((id) => new Types.ObjectId(id));
     }
 
-    // Add hasPage related fields
     if (dto.hasPage) {
       if (files?.heroImage?.[0]) {
         const heroImageUrl = await this.imageuploadService.uploadFile(
@@ -189,6 +186,10 @@ export class IngredientsService {
       ingredientData.order = dto.order;
     }
 
+    if (dto.countries !== undefined) {
+      ingredientData.countries = dto.countries;
+    }
+
     const ingredient = await this.ingredientModel.create(ingredientData);
     
     // Invalidate cache with versioned strategy
@@ -221,27 +222,58 @@ export class IngredientsService {
       );
     }
 
+    // Bust per-country caches so filtered results reflect the new data
+    await this.redisService.delByPattern('Ingredients:all:country:*');
+
     return ingredient;
   }
 
-  async getAllIngredients() {
-    // const cachedKey = 'Ingredients:all';
+  async getAllIngredients(country?: string) {
+    const baseKey = country
+      ? `Ingredients:all:country:${country.toLowerCase()}`
+      : 'Ingredients:all';
 
-    // const cachedData = await this.redisService.get(cachedKey);
-    // if (cachedData) return JSON.parse(cachedData)
-    // console.log('cahed fall')
+    if (country) {
+      const cachedData = await this.redisService.get(baseKey);
+      if (cachedData) {
+        this.logger.log(`Cache hit for ${baseKey}`);
+        return JSON.parse(cachedData);
+      }
+      this.logger.warn(`Cache miss for ${baseKey}`);
 
-    const baseKey = "Ingredients:all"
-    const cachedIngrediants = await this.redisService.getVersioned(baseKey)
+      // Filter: empty countries array = globally available; or country matches
+      const matchQuery: any = {
+        $or: [
+          { countries: { $size: 0 } },
+          { countries: country },
+        ],
+      };
 
-    if(cachedIngrediants) {
-      console.log("cached hit for ingredinats:all")
+      const ingredients = await this.ingredientModel
+        .find(matchQuery)
+        .populate('categoryId', 'name imageUrl')
+        .populate('suitableDiets', 'name')
+        .populate('parentIngredients', 'name')
+        .populate('sponsorId', 'title logo')
+        .populate('relatedHacks', 'title type')
+        .populate('stickerId', 'title imageUrl')
+        .sort({ order: 1, name: 1 })
+        .lean();
+
+      await this.redisService.set(baseKey, JSON.stringify(ingredients), 60 * 20);
+      return ingredients;
+    }
+
+    // No country filter — use existing versioned cache strategy
+    const cachedIngrediants = await this.redisService.getVersioned(baseKey);
+
+    if (cachedIngrediants) {
+      console.log('cached hit for ingredinats:all');
       this.logger.log('Cache hit for Ingredients:all');
       return cachedIngrediants;
     }
 
     this.logger.warn('Cache miss for Ingredients:all');
-
 
     const ingredients = await this.ingredientModel
       .find()
@@ -254,12 +286,7 @@ export class IngredientsService {
       .sort({ order: 1, name: 1 })
       .lean();
 
-    // await this.redisService.set(cachedKey, JSON.stringify(ingredients), 60 * 20);
-    await this.redisService.setVersioned(
-    baseKey,
-    ingredients,
-    60 * 20,
-  );
+    await this.redisService.setVersioned(baseKey, ingredients, 60 * 20);
     return ingredients;
   }
 
@@ -370,6 +397,10 @@ export class IngredientsService {
       updateData.order = dto.order;
     }
 
+    if (dto.countries !== undefined) {
+      updateData.countries = dto.countries;
+    }
+
     const updatedIngredient = await this.ingredientModel
       .findByIdAndUpdate(id, updateData, { new: true })
       .populate('categoryId', 'name imageUrl')
@@ -410,6 +441,8 @@ export class IngredientsService {
       );
     }
 
+    await this.redisService.delByPattern('Ingredients:all:country:*');
+
     return updatedIngredient;
   }
 
@@ -425,7 +458,6 @@ export class IngredientsService {
       throw new NotFoundException('Ingredient not found');
     }
 
-    // Delete associated image if exists
     if (deletedIngredient.heroImageUrl) {
       try {
         await this.imageuploadService.deleteFile(deletedIngredient.heroImageUrl);
@@ -463,6 +495,9 @@ export class IngredientsService {
         `Cache invalidation pushed with version ${newVersion} for key Ingredients:all after deleting ingredient ${id}`,
       );
     }
+
+    // Bust per-country caches
+    await this.redisService.delByPattern('Ingredients:all:country:*');
 
     return { message: 'Ingredient deleted successfully' };
   }

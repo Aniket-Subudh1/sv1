@@ -6,6 +6,7 @@ import {
   Param,
   Delete,
   Put,
+  Query,
   UseGuards,
   UseInterceptors,
   UploadedFile,
@@ -157,18 +158,24 @@ export class RecipeController {
   }
 
   @Get()
-  async findAll() {
-    return this.recipeService.findAll();
+  async findAll(@Query('country') country?: string) {
+    return this.recipeService.findAll(country);
   }
 
   @Get('category/:categoryId')
-  async findByCategory(@Param('categoryId') categoryId: string) {
-    return this.recipeService.findByFrameworkCategory(categoryId);
+  async findByCategory(
+    @Param('categoryId') categoryId: string,
+    @Query('country') country?: string,
+  ) {
+    return this.recipeService.findByFrameworkCategory(categoryId, country);
   }
 
   @Get('ingredient/:ingredientId')
-  async findByIngredient(@Param('ingredientId') ingredientId: string) {
-    return this.recipeService.findByIngredient(ingredientId);
+  async findByIngredient(
+    @Param('ingredientId') ingredientId: string,
+    @Query('country') country?: string,
+  ) {
+    return this.recipeService.findByIngredient(ingredientId, country);
   }
 
   @Get(':id')
