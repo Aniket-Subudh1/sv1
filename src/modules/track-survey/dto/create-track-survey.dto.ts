@@ -9,6 +9,7 @@ import {
 } from 'class-validator';
 import { Type } from 'class-transformer';
 
+
 export class ProduceWasteDto {
   @IsNumber()
   @Min(0)
@@ -65,4 +66,8 @@ export class CreateTrackSurveyDto {
   @Min(0)
   @IsOptional()
   surveyDay?: number; // 0-6 for Sun-Sat
+
+  @IsString()
+  @IsOptional()
+  country?: string; // ISO country code e.g. IN, AU, US
 }

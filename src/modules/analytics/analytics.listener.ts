@@ -55,7 +55,7 @@ export class AnalyticsListner {
         $inc: {
           foodSavedInGrams: event.foodSavedInGrams,
           numberOfMealsCooked: 1,
-          totalMoneySaved: event.totalPriceInINR || 0,
+          totalMoneySaved: event.totalPriceInLocalCurrency || 0,
           totalCo2SavedInGrams: event.totalCo2SavedInGrams || 0,
         },
       };

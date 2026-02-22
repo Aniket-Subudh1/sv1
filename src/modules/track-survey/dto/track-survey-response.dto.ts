@@ -18,7 +18,15 @@ export class TrackSurveyResponseDto {
     co2_savings: number;
     cost_savings: number;
     food_saved: number;
+    currency_symbol: string;
   };
+  // Previous personal bests BEFORE this survey was saved.
+  // Only populated on createSurvey responses; null/missing on list queries.
+  prev_personal_bests?: {
+    co2_savings: number;
+    cost_savings: number;
+    food_saved: number;
+  } | null;
   isBaseline: boolean;
   surveyWeek: Date;
   surveyDay: number;
@@ -43,16 +51,19 @@ export class WeeklySavingsSummaryDto {
     co2_savings: number;
     cost_savings: number;
     food_saved: number;
+    currency_symbol: string;
   };
   previous_week?: {
     co2_savings: number;
     cost_savings: number;
     food_saved: number;
+    currency_symbol: string;
   } | null;
   personal_bests: {
     co2_savings: number;
     cost_savings: number;
     food_saved: number;
+    currency_symbol: string;
   };
   total_surveys: number;
   total_co2_saved: number;

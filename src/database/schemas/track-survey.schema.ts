@@ -14,6 +14,7 @@ export interface WeeklySavings {
   co2_savings: number;
   cost_savings: number;
   food_saved: number;
+  currency_symbol: string;
 }
 
 @Schema({ timestamps: true })
@@ -56,6 +57,7 @@ export class TrackSurvey {
       co2_savings: 0,
       cost_savings: 0,
       food_saved: 0,
+      currency_symbol: '₹',
     },
   })
   calculatedSavings: WeeklySavings;

@@ -21,15 +21,16 @@ export interface FoodSavedEvent {
   ingredinatIds: string[];
   timestamp: Date;
   frameworkId?: string;  
-  totalPriceInINR?: number; 
-  totalCo2SavedInGrams?: number; 
+  totalPriceInLocalCurrency?: number; 
+  totalCo2SavedInGrams?: number;
+  country?: string;
 }
 
 export interface PriceCalculationResult {
   ingredient: string;
   weightInGrams: number;
   country: string;
-  priceInINR: number;
+  priceInLocalCurrency: number;
 }
 
 export interface Co2CalculationResult {
@@ -62,7 +63,7 @@ async saveFood(userId: string, ingredinatIds: string[], frameworkId?: string, di
     // Load user first
     const user = await this.userModel.findOne({ _id: userId, role: "USER" }).lean();
     if (!user) throw new Error('User not found');
-    const country = user.country || "India";
+    const country = user.country || "IN";
 
     let ingredinats: Array<{ name: string; averageWeight: number }>; 
     // Prefer DB lookup by IDs if provided
@@ -81,7 +82,7 @@ async saveFood(userId: string, ingredinatIds: string[], frameworkId?: string, di
 
     // Run AI price calculations in parallel with error handling
     let aiResults: PriceCalculationResult[] = [];
-    let totalPriceInINR: number = 0;
+    let totalPriceInLocalCurrency: number = 0;
     let co2Results: Co2CalculationResult[] = [];
     let totalCo2SavedInGrams: number = 0;
     
@@ -89,7 +90,7 @@ async saveFood(userId: string, ingredinatIds: string[], frameworkId?: string, di
       aiResults = await Promise.all(
         ingredinats.map(i => this.calculatePriceWithAI(i.name, i.averageWeight || 0, country))
       );
-      totalPriceInINR = aiResults.reduce((sum, r) => sum + (r.priceInINR || 0), 0);
+      totalPriceInLocalCurrency = aiResults.reduce((sum, r) => sum + (r.priceInLocalCurrency || 0), 0);
 
       co2Results = await Promise.all(
         ingredinats.map(i => this.calculateCo2SavedWithAI(i.name, i.averageWeight || 0, country))
@@ -101,7 +102,7 @@ async saveFood(userId: string, ingredinatIds: string[], frameworkId?: string, di
         ingredient: i.name,
         weightInGrams: i.averageWeight,
         country,
-        priceInINR: 0
+        priceInLocalCurrency: 0
       }));
       co2Results = ingredinats.map(i => ({
         ingredient: i.name,
@@ -118,8 +119,9 @@ async saveFood(userId: string, ingredinatIds: string[], frameworkId?: string, di
       ingredinatIds,
       timestamp: new Date(),
       frameworkId,
-      totalPriceInINR,
+      totalPriceInLocalCurrency,
       totalCo2SavedInGrams,
+      country,
     });
 
     return {
@@ -127,7 +129,7 @@ async saveFood(userId: string, ingredinatIds: string[], frameworkId?: string, di
       foodSavedInGrams,
       ingredientNames,
       country,
-      totalPriceInINR,
+      totalPriceInLocalCurrency,
       breakdown: aiResults,
       co2Breakdown: co2Results,
       totalCo2SavedInKg: Number((totalCo2SavedInGrams / 1000).toFixed(3)),
@@ -160,9 +162,9 @@ Return strictly in JSON like:
   "ingredient": "...",
   "weightInGrams": 0,
   "country": "...",
-  "priceInINR": 0
+  "priceInLocalCurrency": 0
 }
-Convert price to INR always.
+Return the price in the local currency of the given country (do NOT convert to INR).
 `
           }
         ],
@@ -185,7 +187,7 @@ Convert price to INR always.
         ingredient: ingredientName,
         weightInGrams,
         country,
-        priceInINR: 0
+        priceInLocalCurrency: 0
       };
     }
   }

@@ -484,8 +484,9 @@ export class BadgesService {
         break;
 
       case MetricType.MONEY_SAVED_CUMULATIVE:
-        const gramsSaved = analytics.foodSavedInGrams || 0;
-        achievedValue = this.calculateMoneySaved(gramsSaved);
+        // Use the actual stored totalMoneySaved (already in the user's local currency)
+        // rather than recalculating from grams with a hardcoded per-kg rate.
+        achievedValue = analytics.totalMoneySaved || 0;
         if (achievedValue >= (badge.milestoneThreshold || 0)) {
           metadata.metricType = MetricType.MONEY_SAVED_CUMULATIVE;
           return { award: true, achievedValue, metadata };
@@ -575,7 +576,8 @@ export class BadgesService {
           current = (analytics.foodSavedInGrams || 0) / 1000;
           break;
         case MetricType.MONEY_SAVED_CUMULATIVE:
-          current = this.calculateMoneySaved(analytics.foodSavedInGrams || 0);
+          // Use actual stored money (local currency) rather than recalculating from grams
+          current = analytics.totalMoneySaved || 0;
           break;
         case MetricType.APP_SESSIONS:
           current = (analytics as any).totalAppSessions || 0;
@@ -656,9 +658,9 @@ export class BadgesService {
   }
 
   @OnEvent('food.saved')
-  async handleFoodSaved(payload: { userId: string; amount: number }) {
+  async handleFoodSaved(payload: { userId: string; amount: number; country?: string }) {
     try {
-      await this.checkAndAwardBadges(payload.userId);
+      await this.checkAndAwardBadges(payload.userId, payload.country);
     } catch (error) {
       this.logger.error(`Error checking badges after food saved:`, error);
     }

@@ -20,9 +20,6 @@ export class TrackSurveyService {
     private trackSurveyModel: Model<TrackSurveyDocument>,
   ) {}
 
-  /**
-   * Calculate the start of the week based on user's preferred survey day
-   */
   private getWeekStart(surveyDay: number): Date {
     const today = new Date();
     const dayOfWeek = today.getDay();
@@ -33,24 +30,36 @@ export class TrackSurveyService {
     return weekStart;
   }
 
-  /**
-   * Calculate next survey date based on last survey and preferred day
-   */
   private getNextSurveyDate(lastSurveyWeek: Date, surveyDay: number): Date {
     const nextWeek = new Date(lastSurveyWeek);
     nextWeek.setDate(nextWeek.getDate() + 7);
     return nextWeek;
   }
 
-  /**
-   * Calculate savings based on survey data
-   * This is a simplified calculation - adjust based on your actual algorithm
-   */
   private calculateSavings(dto: CreateTrackSurveyDto) {
-    // Average weight conversions (grams)
+    const COUNTRY_RATES: Record<string, { costPerGram: number; symbol: string }> = {
+      IN: { costPerGram: 0.015, symbol: '₹' },  // India – INR per gram (~₹15/kg)
+      AU: { costPerGram: 0.004, symbol: 'A$' }, // Australia – AUD per gram (~A$4/kg)
+      NZ: { costPerGram: 0.005, symbol: 'NZ$' },// New Zealand – NZD per gram (~NZ$5/kg)
+      US: { costPerGram: 0.003, symbol: '$' },  // United States – USD per gram (~$3/kg)
+      GB: { costPerGram: 0.0035, symbol: '£' }, // United Kingdom – GBP per gram (~£3.5/kg)
+      CA: { costPerGram: 0.004, symbol: 'C$' }, // Canada – CAD per gram (~C$4/kg)
+      CN: { costPerGram: 0.02,  symbol: '¥' },  // China – CNY per gram (~¥20/kg)
+      JP: { costPerGram: 0.4,   symbol: '¥' },  // Japan – JPY per gram (~¥400/kg)
+      KR: { costPerGram: 3.0,   symbol: '₩' },  // South Korea – KRW per gram (~₩3000/kg)
+      SG: { costPerGram: 0.004, symbol: 'S$' }, // Singapore – SGD per gram (~S$4/kg)
+      AE: { costPerGram: 0.012, symbol: 'AED' },// UAE – AED per gram (~AED12/kg)
+      DE: { costPerGram: 0.003, symbol: '€' },  // Germany – EUR per gram (~€3/kg)
+      FR: { costPerGram: 0.003, symbol: '€' },  // France – EUR per gram (~€3/kg)
+    };
+
+    const countryRate = COUNTRY_RATES[dto.country ?? 'IN'] ?? COUNTRY_RATES['IN'];
+    const COST_PER_GRAM = countryRate.costPerGram;
+    const CO2_PER_GRAM = 2.5;
+
     const WEIGHTS = {
-      cupfulScraps: 150, // average cupful of scraps
-      containerLeftovers: 500, // 500ml container
+      cupfulScraps: 150, 
+      containerLeftovers: 500,
       fruitPiece: 150,
       veggiePiece: 100,
       dairyKg: 1000,
@@ -58,12 +67,6 @@ export class TrackSurveyService {
       meatKg: 1000,
       herbsBunch: 50,
     };
-
-    // CO2 emissions per kg of food waste (grams CO2 per gram food)
-    const CO2_PER_GRAM = 2.5;
-
-    // Average cost per gram of food waste (in cents)
-    const COST_PER_GRAM = 0.015;
 
     // Calculate total waste in grams
     const scrapsWeight = dto.scraps * WEIGHTS.cupfulScraps;
@@ -83,24 +86,21 @@ export class TrackSurveyService {
     const avgWeeklyWaste = 5000; // grams
     const foodSaved = Math.max(0, avgWeeklyWaste - totalWasteGrams);
 
-    // Calculate savings
+    // Calculate savings — keep 2 decimal places for currency precision
     const co2_savings = Math.round(foodSaved * CO2_PER_GRAM);
-    const cost_savings = Math.round(foodSaved * COST_PER_GRAM);
+    const cost_savings = Math.round(foodSaved * COST_PER_GRAM * 100) / 100;
 
     return {
       co2_savings,
       cost_savings,
       food_saved: Math.round(foodSaved),
+      currency_symbol: countryRate.symbol,
     };
   }
 
-  /**
-   * Check if user is eligible to take a new survey
-   */
   async checkEligibility(userId: string): Promise<SurveyEligibilityDto> {
     const userIdObj = new Types.ObjectId(userId);
 
-    // Get user's last survey
     const lastSurvey = await this.trackSurveyModel
       .findOne({ userId: userIdObj })
       .sort({ surveyWeek: -1 })
@@ -123,7 +123,6 @@ export class TrackSurveyService {
     const currentWeekStart = this.getWeekStart(lastSurvey.surveyDay);
     const lastSurveyWeek = new Date(lastSurvey.surveyWeek);
 
-    // Check if a week has passed
     const eligible = currentWeekStart.getTime() > lastSurveyWeek.getTime();
 
     const nextSurveyDate = this.getNextSurveyDate(
@@ -201,7 +200,11 @@ export class TrackSurveyService {
 
     const saved = await survey.save();
 
-    return this.toResponseDto(saved);
+    // Attach previous personal bests (computed before this survey was saved)
+    // so the client can display "Your previous best was X" correctly.
+    const dto_response = this.toResponseDto(saved);
+    dto_response.prev_personal_bests = personalBests;
+    return dto_response;
   }
 
   /**
@@ -296,7 +299,10 @@ export class TrackSurveyService {
     return {
       current_week: surveys[0].calculatedSavings,
       previous_week: surveys[1]?.calculatedSavings || null,
-      personal_bests: personalBests,
+      personal_bests: {
+        ...personalBests,
+        currency_symbol: surveys[0].calculatedSavings.currency_symbol ?? '₹',
+      },
       total_surveys: allSurveys.length,
       total_co2_saved: totalSavings.co2,
       total_cost_saved: totalSavings.cost,
@@ -304,9 +310,6 @@ export class TrackSurveyService {
     };
   }
 
-  /**
-   * Convert document to response DTO
-   */
   private toResponseDto(doc: any): TrackSurveyResponseDto {
     return {
       _id: doc._id.toString(),
